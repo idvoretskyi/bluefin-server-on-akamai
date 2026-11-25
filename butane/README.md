@@ -6,5 +6,5 @@
   not define the same file path or unit name).
 
 Fetch the server repo's own profile templates with `make overlays`
-(`home-server`, `homelab-control-plane`, ...); they land in `overlays/` and
+(`home-server`, `homelab-control-plane`, ...); they land in `overlays/server/` (use `OVERLAY=server/home-server`) and
 are not committed.

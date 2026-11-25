@@ -11,7 +11,7 @@ require gh
 : "${BLUEFIN_VERSION:=latest}"
 tag=()
 [ "$BLUEFIN_VERSION" = latest ] || tag=("v${BLUEFIN_VERSION#v}")
-dest="${REPO_ROOT}/butane/overlays"
+dest="${REPO_ROOT}/butane/overlays/server"
 mkdir -p "$dest"
 log "downloading *.bu templates from projectbluefin/server (${BLUEFIN_VERSION})"
 gh release download "${tag[@]}" --repo projectbluefin/server --pattern '*.bu' --dir "$dest" --clobber \

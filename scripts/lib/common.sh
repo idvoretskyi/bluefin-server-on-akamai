@@ -114,11 +114,15 @@ compile_butane() {
     allowlist="${allowlist} \${${v}}"
   done
 
-  require envsubst
   local rendered
   rendered="$(dirname "$out")/$(basename "$template" .bu).rendered.bu"
-  # shellcheck disable=SC2016 # envsubst needs the literal variable names, not expansions
-  envsubst "$allowlist" < "$template" > "$rendered"
+  if [ -n "$allowlist" ]; then
+    require envsubst
+    # shellcheck disable=SC2016 # envsubst needs the literal variable names, not expansions
+    envsubst "$allowlist" < "$template" > "$rendered"
+  else
+    cp "$template" "$rendered"
+  fi
   "$bin" --strict < "$rendered" > "$out" || die "butane compile failed: ${template}"
 }
 

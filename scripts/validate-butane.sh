@@ -18,7 +18,7 @@ compile_butane "${REPO_ROOT}/butane/bluefin.bu" "$base" NODE_HOSTNAME SSH_AUTHOR
 jq -e '.passwd.users[0].name == "root" and (.passwd.users[0].sshAuthorizedKeys | length) == 1
   and ([.systemd.units[].name] | index("sshd.service") != null)' "$base" >/dev/null \
   || die "base Ignition is missing the root key or sshd.service"
-for f in "${REPO_ROOT}"/butane/overlays/*.bu; do
+for f in "${REPO_ROOT}"/butane/overlays/*.bu "${REPO_ROOT}"/butane/overlays/server/*.bu; do
   [ -e "$f" ] || continue
   compile_butane "$f" "${BUILD_DIR}/validate-overlay.json"
   jq -n --slurpfile base "$base" --slurpfile overlay "${BUILD_DIR}/validate-overlay.json" \

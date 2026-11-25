@@ -28,4 +28,4 @@ tofu.plan
 
 
 # Fetched by `make overlays`
-/butane/overlays/*.bu
+/butane/overlays/server/

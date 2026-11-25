@@ -1,20 +1,26 @@
-# Prerequisites and open questions
+# Prerequisites and findings
 
 This repo only deploys; the OS-side work lives in `projectbluefin/server`.
 
-## 1. Firmware: UEFI or BIOS (decides everything)
+## Phase 1 findings (probed on a live nanode, us-ord, Debian 13)
 
-Bluefin's install, A/B update and boot-counting paths need UEFI (signed UKI, systemd-boot). Linode instances have historically booted legacy BIOS. Test first with a minimal UEFI-only image on a nanode.
-
-| Result | Consequence |
+| Check | Result |
 |---|---|
-| UEFI works | Upload the installed-disk image directly (this repo's design). |
-| BIOS only | Only the diskless path (iPXE boots the UKI kernel and initrd) is possible: no install, no sysupdate, no boot counting. This repo's `linode_instance_config` would need a different boot method. |
+| Firmware | **Legacy BIOS only.** No `/sys/firmware/efi`; the e820 map is SeaBIOS-style on a Q35 machine, DMI vendor `Linode`. Linode's docs say `direct-disk` boots the disk's MBR. |
+| Disks | virtio-scsi (`QEMU_HARDDISK`), `sda`/`sdb` |
+| Console | `ttyS0,19200n8` (Lish) |
+| Metadata service | Works from the guest: `PUT /v1/token` (64-byte token), then `GET /v1/instance`, `/v1/user-data` with `Metadata-Token`. Needs a Metadata-capable region (us-ord is) and an image uploaded with `--cloud-init`. |
 
-## 2. Server-side changes needed
+Consequence: the UEFI design (installed disk, systemd-boot, A/B updates, boot counting) cannot run on Akamai today. Only the diskless path Booty already supports for BIOS is possible: iPXE boots the netboot UKI's kernel and initrd sections, and the initrd pulls the signed OS DDI into RAM. No install, no sysupdate, no boot counting.
 
-1. An Akamai disk image element (`bluefin-server-akamai_<ver>.img.gz`, at most 6 GiB, `console=ttyS0,19200n8` for Lish, virtio drivers in the initrd).
-2. An Akamai source in `bluefin-ignition-credentials`: when the SMBIOS vendor is Linode/Akamai, fetch `user_data` from `http://169.254.169.254` (token PUT first) and stage it as `/run/ignition/user.ign`. Open question: require an Ignition-key signature, or trust the per-tenant Metadata service.
-3. A short skill doc in the server repo, listed in `docs/skills/index.md`.
+## Revised design
 
-Until the image exists, point `IMAGE_SOURCE` at a locally built disk image.
+- A tiny BIOS-bootable boot disk (iPXE with an embedded script) replaces the full Akamai disk image. The script fetches the kernel and initrd (extracted from the release's netboot UKI) and passes the UKI's own `.cmdline` with the `rd.systemd.pull` URL pointing at the release.
+- Persistent data lives on a second disk (`state-disk` overlay, `/dev/sdb` as `/var`); the OS itself is re-pulled on every boot. The instance needs enough RAM for the DDI (see the server's diskless-troubleshooting skill; `g6-standard-2` or larger).
+- Ignition still arrives from the Metadata service, through a Linode source added to `bluefin-ignition-credentials` (trusted unsigned, only on a Linode).
+
+## Server-side changes needed (separate PR, not started)
+
+1. A Linode/Akamai Metadata source in `bluefin-ignition-credentials` (SMBIOS vendor `Linode`; token PUT, `user-data`, stage as `/run/ignition/user.ign`), with a unit test.
+2. A way to build or publish the iPXE boot disk and the extracted kernel/initrd (or a Booty-style endpoint), plus a skill doc.
+3. Serial console `ttyS0,19200n8` on the netboot cmdline for Lish.
