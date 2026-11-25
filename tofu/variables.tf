@@ -41,14 +41,14 @@ variable "private_ip" {
   default = false
 }
 
-variable "state_disk_mb" {
-  description = "Size of an optional second disk (sdb) for persistent /var; 0 disables it."
+variable "boot_disk_mb" {
+  description = "Boot disk size in MB. The boot disk only holds the syslinux boot image (kernel + initrd), so it stays small."
   type        = number
-  default     = 0
+  default     = 1024
 }
 
-variable "boot_disk_mb" {
-  description = "Boot disk size in MB; null uses the plan's disk minus state_disk_mb."
+variable "state_disk_mb" {
+  description = "Size of the second disk (sdb, persistent /var); null uses the rest of the plan's disk, 0 disables it."
   type        = number
   default     = null
 }

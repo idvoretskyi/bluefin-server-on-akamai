@@ -9,8 +9,12 @@ ARGS ?=
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
+.PHONY: bootdisk
+bootdisk: ## Build the BIOS boot disk for BLUEFIN_VERSION (needs docker + gh)
+	scripts/build-bootdisk.sh
+
 .PHONY: image
-image: ## One-time: upload the Bluefin Server Akamai image (prints private/<id>)
+image: ## Upload the boot disk as a private Linode image (prints private/<id>)
 	scripts/upload-image.sh
 
 .PHONY: overlays

@@ -2,4 +2,4 @@ image_id      = "private/1234567"
 region        = "us-ord"
 instance_type = "g6-standard-2"
 label         = "bluefin-akamai"
-state_disk_mb = 0
+# state_disk_mb = null  (default: rest of the plan disk)

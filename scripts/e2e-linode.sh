@@ -9,6 +9,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${SCRIPT_DIR}/lib/common.sh"
 load_env
 require tofu ssh jq
+# Fall back to the token linode-cli already holds (never printed).
+if [ -z "${LINODE_TOKEN:-}" ] && [ -r "${HOME}/.config/linode-cli" ]; then
+  LINODE_TOKEN="$(sed -n 's/^token *= *//p' "${HOME}/.config/linode-cli" | head -n1)"
+  export LINODE_TOKEN
+fi
 need_var LINODE_TOKEN; need_var IMAGE_ID
 KEEP=0; [ "${1:-}" = "--keep" ] && KEEP=1
 
@@ -29,7 +34,7 @@ trap teardown EXIT
 "${TF[@]}" init -input=false >/dev/null
 "${TF[@]}" apply -auto-approve -input=false "${VARS[@]}"
 IP="$("${TF[@]}" output -raw ip_address)"
-SSH=(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o BatchMode=yes "root@${IP}")
+SSH=(ssh ${SSH_KEY:+-i "$SSH_KEY"} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 -o BatchMode=yes "root@${IP}")
 
 log "waiting for SSH on ${IP}"
 for _ in $(seq 1 60); do "${SSH[@]}" true 2>/dev/null && break; sleep 10; done
@@ -37,6 +42,12 @@ for _ in $(seq 1 60); do "${SSH[@]}" true 2>/dev/null && break; sleep 10; done
 
 h="$("${SSH[@]}" hostname)"
 [ "$h" = "${NODE_HOSTNAME:-bluefin-akamai}" ] || die "hostname mismatch: ${h}"
-"${SSH[@]}" 'grep -q ^ID=bluefin-server /etc/os-release || grep -q bluefin /etc/os-release' || die "not a Bluefin Server node"
+"${SSH[@]}" 'grep -qi bluefin /etc/os-release' || die "not a Bluefin Server node"
 "${SSH[@]}" 'findmnt -no FSTYPE /usr | grep -qx erofs' || die "/usr is not erofs"
+"${SSH[@]}" 'findmnt -no SOURCE /var | grep -q ^/dev/sdb' || die "/var is not on the state disk (is the state-disk overlay used? OVERLAY=state-disk)"
+"${SSH[@]}" 'echo persist > /var/e2e-marker && sync'
+"${SSH[@]}" reboot || true
+sleep 30
+for _ in $(seq 1 60); do "${SSH[@]}" true 2>/dev/null && break; sleep 10; done
+[ "$("${SSH[@]}" cat /var/e2e-marker)" = persist ] || die "/var did not survive a reboot"
 log "e2e passed"

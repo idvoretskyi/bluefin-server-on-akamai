@@ -1,47 +1,46 @@
 # bluefin-server-on-akamai
 
-Zero-touch [Bluefin Server](https://github.com/projectbluefin/server) on [Akamai Cloud (Linode)](https://www.linode.com/), provisioned with [OpenTofu](https://opentofu.org/) and configured with Ignition compiled from [Butane](https://coreos.github.io/butane/). Modelled on [flatcar-on-akamai](https://github.com/idvoretskyi/flatcar-on-akamai).
+Zero-touch [Bluefin Server](https://github.com/projectbluefin/server) on [Akamai Cloud (Linode)](https://www.linode.com/), provisioned with [OpenTofu](https://opentofu.org/) and configured with Ignition compiled from [Butane](https://coreos.github.io/butane/). Inspired by [flatcar-on-akamai](https://github.com/idvoretskyi/flatcar-on-akamai).
 
-> **Status: scaffold.** The tooling validates offline (`make validate`) but has not been run against a live Linode yet. It depends on two changes in `projectbluefin/server` (see [docs/01-prerequisites.md](docs/01-prerequisites.md)): an Akamai disk image and a Metadata-service source for Ignition.
+> **Status:** verified live on Akamai (`us-ord`, `g6-standard-2`, release 26.11.2806): the node boots, pulls and verifies the OS image, applies Ignition from the Metadata service, SSH works, `/usr` is dm-verity erofs, and `/var` on the second disk survives a reboot. Until a server release ships the Linode Metadata source, the boot disk needs a one-line dev overlay (see [docs/02-deploy.md](docs/02-deploy.md)).
+
+## Why diskless
+
+Linode instances boot **legacy BIOS** (probed: no `/sys/firmware/efi`, `direct-disk` boots the MBR). Bluefin's UEFI install, A/B update and boot counting paths cannot run, so the node runs the supported diskless BIOS flow:
 
 ```
- one-time               per deploy
-┌────────────┐   ┌───────────────────────────────────────────┐
-│ make image │   │ make ignition  -> build/ignition.json      │
-│ upload the │   │ make apply (OpenTofu):                     │
-│ Akamai     │   │   linode_instance  metadata.user_data <----┘
-│ disk image │   │   linode_instance_disk  <- private/<id>   │
-│ private/id │   │   linode_instance_config  direct-disk     │
-└────────────┘   │ first boot: node reads user_data, Ignition│
-                 │ applies, then: ssh root@<ip>               │
-                 └───────────────────────────────────────────┘
+ make bootdisk                       make apply (OpenTofu)
+┌──────────────────────────┐   ┌─────────────────────────────────────┐
+│ syslinux boot disk (113M)│   │ sda  boot disk (private image)      │
+│  kernel + initrd from the│   │ sdb  state disk  -> /var (xfs)      │
+│  netboot UKI, its own    │   │ metadata.user_data = Ignition       │
+│  cmdline, pull URL ->    │   └──────────────┬──────────────────────┘
+│  GitHub release DDI      │                  │ boot
+└──────────────────────────┘   initrd pulls bluefin-server_<ver>.raw into RAM,
+                               verifies SHA256SUMS.gpg, dm-verity pins /usr;
+                               Ignition user data comes from the Metadata
+                               service; ssh root@<ip>
 ```
+
+The OS is re-pulled on every boot; persistent data lives on `sdb`. Changing versions means building and uploading a new boot disk.
 
 ## Quick start
 
 ```sh
-cp .env.example .env && $EDITOR .env     # REGION, SSH_AUTHORIZED_KEY, IMAGE_SOURCE ...
-export LINODE_TOKEN=...                  # Linodes RW + Images RW
-make image                               # then set IMAGE_ID in .env and tofu/terraform.tfvars
-make ignition                            # OVERLAY=home-server after `make overlays`
-cp tofu/terraform.tfvars.example tofu/terraform.tfvars
+cp .env.example .env && $EDITOR .env      # SSH_AUTHORIZED_KEY, REGION, BLUEFIN_VERSION ...
+export LINODE_TOKEN=...                   # Linodes RW + Images RW
+make bootdisk                             # needs docker + gh
+make image                                # prints IMAGE_ID=private/<id>; put it in .env
+make ignition                             # OVERLAY=state-disk by default
+cp tofu/terraform.tfvars.example tofu/terraform.tfvars   # set image_id
 make init plan apply
 make ssh
 ```
 
-## Differences from the Flatcar version
+More: [docs/01-overview.md](docs/01-overview.md), [docs/02-deploy.md](docs/02-deploy.md), [docs/03-troubleshooting.md](docs/03-troubleshooting.md).
 
-- **No Afterburn, no knuckle.** Bluefin ignores `ignition.*` kernel arguments (the command line is sealed in the signed UKI); configs arrive as credentials or from the Metadata service via a server-side source. Butane is the only generator.
-- **No password, sshd off by preset.** The base config sets the root key and enables `sshd.service`.
-- **Overlays** are the server's own `home-server` / `homelab-*` Butane templates (`make overlays`), merged onto the base.
-- **Optional state disk** (`state_disk_mb`) for a persistent `/var`; pair it with an overlay that formats `/dev/sdb`.
+## Checks
 
-## Docs
-
-1. [Prerequisites and open questions](docs/01-prerequisites.md)
-
-## Offline checks and e2e
-
-`make validate` never contacts Linode. `make e2e` deploys, asserts over SSH, and always destroys (`ARGS=--keep` to debug).
+`make validate` is offline. `make e2e` deploys, asserts over SSH (hostname, erofs `/usr`, `/var` on `sdb`, `/var` survives a reboot) and destroys (`ARGS=--keep` to keep it). A run costs a few cents.
 
 MIT licensed.

@@ -25,19 +25,28 @@ resource "linode_instance" "this" {
 resource "linode_instance_disk" "boot" {
   label     = "${var.label}-boot"
   linode_id = linode_instance.this.id
-  size      = var.boot_disk_mb != null ? var.boot_disk_mb : linode_instance.this.specs.0.disk - var.state_disk_mb
+  size      = var.boot_disk_mb
 
   image      = var.image_id
   root_pass  = random_password.root.result
   filesystem = "raw"
 }
 
-# Optional second disk for a persistent /var (Ignition formats it on first boot).
+# Second disk for a persistent /var; the state-disk overlay makes Ignition format it.
+# Known at plan time (unlike the instance's specs), so it can drive count.
+data "linode_instance_type" "this" {
+  id = var.instance_type
+}
+
+locals {
+  state_disk_mb = coalesce(var.state_disk_mb, data.linode_instance_type.this.disk - var.boot_disk_mb)
+}
+
 resource "linode_instance_disk" "state" {
-  count      = var.state_disk_mb > 0 ? 1 : 0
+  count      = local.state_disk_mb > 0 ? 1 : 0
   label      = "${var.label}-state"
   linode_id  = linode_instance.this.id
-  size       = var.state_disk_mb
+  size       = local.state_disk_mb
   filesystem = "raw"
 }
 
