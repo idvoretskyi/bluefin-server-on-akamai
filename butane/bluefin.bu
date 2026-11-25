@@ -1,0 +1,27 @@
+# Base Butane config for Bluefin Server on Akamai/Linode (fcos variant, as in
+# the server repo's own templates). The render script substitutes
+# ${NODE_HOSTNAME} and ${SSH_AUTHORIZED_KEY} from .env via envsubst.
+#
+# The image ships no password and sshd is disabled by preset, so the key and the
+# sshd unit must both come from Ignition.
+variant: fcos
+version: 1.7.0
+
+storage:
+  files:
+    - path: /etc/hostname
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: "${NODE_HOSTNAME}"
+
+systemd:
+  units:
+    - name: sshd.service
+      enabled: true
+
+passwd:
+  users:
+    - name: root
+      ssh_authorized_keys:
+        - "${SSH_AUTHORIZED_KEY}"
