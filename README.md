@@ -2,7 +2,7 @@
 
 Zero-touch [Bluefin Server](https://github.com/projectbluefin/server) on [Akamai Cloud (Linode)](https://www.linode.com/), provisioned with [OpenTofu](https://opentofu.org/) and configured with Ignition compiled from [Butane](https://coreos.github.io/butane/). Inspired by [flatcar-on-akamai](https://github.com/idvoretskyi/flatcar-on-akamai).
 
-> **Status:** verified live on Akamai (`us-ord`, `g6-standard-2`, release 26.11.2806): the node boots, pulls and verifies the OS image, applies Ignition from the Metadata service, SSH works, `/usr` is dm-verity erofs, and `/var` on the second disk survives a reboot. Until a server release ships the Linode Metadata source, the boot disk needs a one-line dev overlay (see [docs/02-deploy.md](docs/02-deploy.md)).
+> **Status:** verified live on Akamai (`us-ord`, `g6-standard-2`, release 26.11.2806): the node boots, pulls and verifies the OS image, applies Ignition from the Metadata service, SSH works, `/usr` is dm-verity erofs, and `/var` on the second disk survives a reboot. Until [projectbluefin/server#734](https://github.com/projectbluefin/server/pull/734) (Linode Metadata source) ships in a release, the boot disk needs a dev overlay (see [docs/02-deploy.md](docs/02-deploy.md)).
 
 ## Why diskless
 
